@@ -48,18 +48,53 @@ get demoted by fairshare. `extra` is reserved for justified urgent jobs.
 
 ## How to use this skill
 
-1. **Identify what the user is trying to do** — connect, submit, debug, optimise,
-   move data, choose tooling, etc. Use the decision table below to jump to the
-   right reference.
-2. **Read only the reference file(s) you need.** The references are written as
+**This skill turns you into an operator on the cluster, not just an info
+source.** If the user has SSH access configured locally (`ssh garnatxa` works
+without a password), you should reach into the cluster directly to diagnose
+and act, rather than asking the user to run commands and paste output back.
+
+### Default operating mode
+
+1. **Identify what the user is trying to do** — connect, submit, debug,
+   optimise, move data, archive, etc. Use the decision table below to jump to
+   the right reference.
+2. **Reach into the cluster directly when it would help.** SSH is set up;
+   read-only diagnostic commands are safe to run without asking. Examples:
+   `ssh garnatxa 'squeue -u $USER'`, `sacct -u $USER --starttime=...`,
+   `squeue_ -u $USER`, `sacct_ -b -u $USER`, `scontrol show job <ID>`,
+   `tail slurm-<id>.out`, `module avail`, `sinfo`, `sshare`, `sprio`.
+3. **Confirm before destructive or shared-impact actions.** Submitting a job
+   that consumes hundreds of CPUs, `scancel -u $USER`, `rm -rf`, `tapecopy`
+   of TBs, modifying `~/.bashrc` or shell config, force-pushing to GitLab,
+   writing outside the user's `$HOME` / `/storage/<group>` — these need an
+   explicit "yes" from the user first.
+4. **Read only the reference file(s) you need.** The references are
    self-contained deep dives; don't load them all eagerly.
-3. **Always answer with concrete Garnatxa-specific commands** (right hostnames,
-   right partitions/QoS, right `module load` names) — not generic SLURM/Linux.
-4. **When writing a job script**, start from an asset in `assets/`. The defaults
-   there already match Garnatxa's partitions and QoS values.
-5. **Push the user toward good citizenship**: realistic resource requests, no
-   heavy work on the login node, no Git pushes > 10 MB or with data files,
-   no Docker (use Singularity), and the required acknowledgment in papers.
+5. **Answer with concrete Garnatxa-specific commands and outputs** — right
+   hostnames, right partitions/QoS, right `module load` names — not generic
+   SLURM/Linux. When writing a job script, start from an asset in `assets/`.
+6. **Push the user toward good citizenship**: realistic resource requests
+   (≥ 75 % CPU and memory efficiency), no heavy work on the login node, no
+   Git pushes > 10 MB or with data files, no Docker (use Singularity), and
+   the required acknowledgment in papers.
+
+### Typical diagnostic loop (read-only, run freely)
+
+```bash
+ssh garnatxa '
+  echo "=== queue ===";            squeue -u $USER --long
+  echo "=== live efficiency ===";  squeue_ -u $USER
+  echo "=== recent (7d) ===";      sacct -u $USER --starttime=$(date -d "-7 days" +%F) \
+                                          --format=jobid,jobname%20,state,elapsed,reqcpu,reqmem,maxrss,exitcode
+  echo "=== finished efficiency ==="; sacct_ -b -u $USER
+  echo "=== fairshare ===";        sshare -u $USER
+'
+```
+
+From that one round-trip you can diagnose: stuck `PD` jobs (look at `REASON`),
+under-utilization (CPU/MEM efficiency < 75 % → right-size), TIMEOUT loops
+(`State=TIMEOUT` repeatedly → move to higher QoS or split into checkpoints),
+fairshare depression (heavy recent use → expect longer queue waits).
 
 ### Decision table
 
