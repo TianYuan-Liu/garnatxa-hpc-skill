@@ -2,140 +2,202 @@
 
 [![lint](https://github.com/TianYuan-Liu/garnatxa-hpc-skill/actions/workflows/lint.yml/badge.svg)](https://github.com/TianYuan-Liu/garnatxa-hpc-skill/actions/workflows/lint.yml)
 
-A [Claude Code](https://claude.com/claude-code) skill that turns Claude Code
-into a **hands-on operator** for the **Garnatxa HPC cluster** at
-[I2SysBio](https://www.uv.es/institute-integrative-systems-biology-i2sysbio/en/)
-(UV / CSIC, Valencia).
+**Treat Garnatxa like your laptop.**
 
-Once installed, Claude Code can directly **SSH into the cluster, inspect your
-jobs, diagnose failures, right-size resource requests, and act on the cluster
-on your behalf** — not just answer questions in the abstract. The skill
-encodes the Garnatxa-specific details (hostnames, partitions, QoS limits,
-modules, tape system, GitLab, VPN) so the agent uses the right commands
-instead of generic SLURM advice.
+Tell [Claude Code](https://claude.com/claude-code) what you want done.
+It finds your data on the cluster, loads the right modules, writes the right
+sbatch, picks the right QoS, submits to the right partition, waits for it to
+finish, reads the efficiency numbers, diagnoses failures, and ships the
+results back to your machine.
 
-## What the agent can do for you
+No sbatch headers. No `squeue` refreshing in the other terminal. No `ssh
+merlot` to remember. No "wait, what was the right partition again."
 
-With your SSH config already in place (i.e. `ssh garnatxa` works), Claude
-Code will reach into the cluster directly to:
+---
 
-- Check what's queued / running / finished — `squeue`, `squeue_`, `sacct`,
-  `sacct_`
-- Diagnose stuck `PD` jobs and `AssocGrpCpuLimit` / `QOSMaxCpuPerUserLimit`
-  reasons
-- Pull CPU and memory efficiency for finished jobs and propose right-sized
-  replacements (Garnatxa's policy: ≥ 75 % CPU and memory efficiency)
-- Read your `slurm-<jobid>.out`/`.err` to find the actual error
-- Write complete, copy-pasteable sbatch scripts that target the right QoS
-  (`short` / `medium` / `long` / `long-mem`)
-- Build Nextflow / Snakemake configs for the Garnatxa SLURM executor
-- Walk you through `ssh merlot` + `tapecopy` for archiving to LTO-9 tape
-- Resolve VPN / SSH / firewall / password-rotation issues
-- Set up the GitLab + VSCode-rsync workflow
+## A normal afternoon
 
-The agent **runs read-only diagnostic commands without asking** (they're
-safe) but **confirms before anything destructive or shared-impact** —
-`scancel -u $USER`, large `sbatch` submissions, `rm -rf`, tape writes of
-TBs, shell-config edits.
+```text
+> The latest basecalls just landed for run 42. Should be ~50 paired-end
+  FASTQ files somewhere under /storage/gge/Tian/seq/. Align them to hg38
+  with bwa and put the BAMs somewhere reasonable. Ping me when done.
 
-### Example session
+  • garnatxa ssh: 50 FASTQs in /storage/gge/Tian/seq/basecalls-2/  (1.4 TB)
+  • fairshare 0.45 — picking --qos=medium
+  • writing 50-task array, --cpus-per-task=8 --mem=20G --time=2:00:00,
+    module load biotools (samtools 1.21, bwa 0.7.17)
+  • submitted as job 2810123. polling every 30 s.
+  …
+  • 47 min later — all 50 tasks COMPLETED.
+    mean CPU 82%, mean mem 65%, both above the 75% / 30% target
+  • 50 BAMs in /storage/gge/projects/run42/bams/  (280 GB)
+  • cleaned up /scr/tyuan/.run42-work
 
+  Want me to run `samtools flagstat` on each and rsync the summary to your
+  laptop?
+
+> yes, into ~/Desktop/run42_qc.tsv
 ```
-> Can you check on my running jobs and any way to improve them?
 
-Claude reaches into Garnatxa, runs:
-  ssh garnatxa 'squeue -u $USER --long ; squeue_ -u $USER ; sacct_ -b -u $USER'
+That's the loop. The skill knows your cluster: the right modules, the right
+QoS, where scratch lives, how to read `sacct_` for efficiency, why a job is
+pending. So you don't have to.
 
-…and replies with:
-  • Your last 3 jobs used only 1-6 CPUs out of the 16-32 you requested
-  • Memory efficiency was 2-3% on two of them
-  • Two earlier jobs hit TIMEOUT — try medium QoS
-  • Here's a drop-in template tuned to your actual usage…
+---
+
+## You'll also want it for…
+
+**Finding out what just failed.**
+
+```text
+> jobs 2792866_11 through _15 died last night, look into it.
+
+  • pulled slurm-2792866_11.err:  ModuleNotFoundError: 'encodings'
+  • diagnosis: PYTHONHOME from a previous mamba env leaked in
+  • patched the sbatch: `module purge` before `mamba activate`
+  • resubmitted only the failed indices: sbatch --array=11-15 …
+  • ETA ~30 min — will notify
 ```
+
+**Realizing you've been wasting allocation.**
+
+```text
+> am i using the cluster well?
+
+  • last 3 jobs: 1/16 CPU (4%), 5/16 (31%), 6/32 (19%)
+  • you ask for ~5× the cores and 30× the RAM you actually use
+  • that's why your fairshare is 0.995 — future jobs queue longer
+  • drop-in template tuned to your real MaxRSS:
+    --cpus-per-task=8  --mem=8G  --time=12:00:00
+```
+
+**Archiving a finished project.**
+
+```text
+> we're done with /storage/gge/Tian/2024-fiberseq, archive it.
+
+  • size 4.8 TB / 14 232 files — fits one LTO-9 (NCR001L9, 16 TB free)
+  • sha-256 manifest → /home/tyuan/manifests/2024-fiberseq.sha256
+  • ssh merlot; tapecopy submitted; monitoring jobtape_20260514….out
+  • 3 h later — tape COMPLETED. sample-verified 10 random files.
+  • waiting for your "yes, delete the original" before rm.
+```
+
+**Launching a pipeline.** You say "run my Nextflow pipeline on the new samples
+with the GRCh38 reference"; the agent picks the master QoS so it outlives the
+slowest child, sets `clusterOptions = '--qos=short'`, watches the master log,
+cleans `work/` on success, and saves the HTML report to your laptop.
+
+**Setting up a brand-new account.** "I just got my Garnatxa credentials" →
+walks you through VPN config, key install, password rotation, `module save`
+of a sensible default environment, and an initial GitLab repo with the right
+`.gitignore`.
+
+---
+
+## What makes this different
+
+This isn't a chat wrapper over `man sbatch`. The skill encodes everything
+that's *specifically Garnatxa* — and the agent reaches into the cluster over
+SSH to do the work for real:
+
+- The right QoS for the time you asked for (`short` ≤ 1 d, `medium` ≤ 7 d,
+  `long` ≤ 15 d, `long-mem` for the big-RAM stuff).
+- The right modules — `biotools/2` for most bio work, `nextflow/25.10.2`,
+  the `anaconda` module to get `mamba`.
+- The 200 / 1300 / 100 / 80 per-QoS CPU caps so it doesn't blow your
+  fairshare.
+- That `/scr` is Ceph-shared and isn't auto-cleaned. That `/tape2` is only
+  on `merlot`. That `module` isn't in non-interactive SSH (the agent uses
+  `bash -lc`).  That `scontrol show job` only sees recent jobs and old ones
+  need `sacct -P --format=workdir%80`.
+- The htslib mismatch trap when you mix `module load samtools` with a
+  `mamba` env that has bcftools.
+
+Every one of these facts was verified against the live cluster the day this
+skill was published.
+
+---
 
 ## Install
 
-Prerequisites: a working `ssh garnatxa` (via VPN if you're off-network) and
-[Claude Code](https://claude.com/claude-code).
+You need:
+
+- A working `ssh garnatxa` (i.e. VPN connected, key registered).
+- [Claude Code](https://claude.com/claude-code).
 
 ```sh
 git clone https://github.com/TianYuan-Liu/garnatxa-hpc-skill.git
 ln -sfn "$PWD/garnatxa-hpc-skill/skill/garnatxa-hpc" ~/.claude/skills/garnatxa-hpc
 ```
 
-Open a new Claude Code session in any directory — the skill auto-loads when
-the conversation touches anything Garnatxa-related. Try:
+Open a new Claude Code session anywhere. It auto-loads when the conversation
+touches Garnatxa. If `ssh garnatxa` isn't set up yet, just open Claude Code
+and say *"set me up to use the Garnatxa cluster from this laptop"* — it'll
+walk you through it.
 
-```
-> How do I submit a STAR alignment with 12 threads and 30 GB RAM on Garnatxa?
-> My job 2792866_11 just failed — what happened and how do I fix it?
-> Archive /storage/mygroup/projectX/ to tape, but check sizes first.
-```
+---
 
-If you don't already have `ssh garnatxa` configured, see
-[`skill/garnatxa-hpc/references/connecting.md`](skill/garnatxa-hpc/references/connecting.md)
-— it walks the agent (and you) through VPN setup, key install, and password
-rotation.
+## Safety
 
-## What's in the skill
+The agent treats your cluster account like a production system:
+
+- **Read-only diagnostics** (`squeue`, `sacct`, `sinfo`, `scontrol show`,
+  tailing slurm logs, `du`) — runs freely.
+- **Small sbatch submissions** — runs if you clearly asked.
+- **`scancel`, big submissions, `rm -rf`, tape writes, shell-config or
+  `~/.ssh/` edits, GitLab pushes** — confirms before doing.
+
+These rules live in [`skill/garnatxa-hpc/SKILL.md`](skill/garnatxa-hpc/SKILL.md)
+and apply to any agent that loads the skill.
+
+---
+
+## What's in it
 
 ```
 skill/garnatxa-hpc/
-├── SKILL.md                  # entry — cluster facts, QoS table, decision routing,
-│                             #   operating mode (read-only freely, confirm before
-│                             #   destructive)
-├── references/               # deep dives loaded on demand by the agent
-│   ├── connecting.md           # SSH, VPN, firewall, first login
-│   ├── slurm.md                # full SLURM reference + templates
-│   ├── software.md             # modules, mamba, Singularity, biotools bundle
-│   ├── pipelines.md            # Nextflow + Snakemake on the SLURM executor
-│   ├── storage.md              # /home, /storage, /scr, tape
-│   ├── policies.md             # QoS, quotas, acknowledgment
-│   ├── gitlab-vscode.md        # GitLab + rsync-on-save workflow
-│   └── hardware.md             # nodes, CPUs, Ceph, tape library
-└── assets/                   # ready-to-edit templates
-    ├── job_serial.sh,  job_threaded.sh,  job_mpi.sh,  job_array.sh
-    ├── launcher_dependency.sh
-    ├── nextflow.config,        nextflow_launcher.sbatch
-    └── snakemake_profile.yaml, snakemake_launcher.sbatch
+├── SKILL.md                  # entry: cluster facts, routing, operator gotchas
+├── references/
+│   ├── operator-loop.md         # how the agent drives the cluster end-to-end
+│   ├── troubleshooting.md       # ~20 failure modes: symptom → diagnostic → fix
+│   ├── scenarios.md             # 14 step-by-step playbooks
+│   ├── connecting.md            # SSH, VPN, firewall, first login
+│   ├── slurm.md                 # full SLURM reference + templates
+│   ├── software.md              # modules, mamba, Singularity, biotools
+│   ├── pipelines.md             # Nextflow + Snakemake on the SLURM executor
+│   ├── storage.md               # /home, /storage, /scr, tape
+│   ├── policies.md              # QoS, quotas, acknowledgment
+│   ├── gitlab-vscode.md         # GitLab + rsync-on-save workflow
+│   └── hardware.md              # nodes, CPUs, Ceph, tape library
+└── assets/
+    ├── preflight.sh                       # 1-shot SSH/VPN/tooling probe
+    ├── wait_for_job.sh                    # local poll-until-done helper
+    ├── resubmit_with_bumped_resources.sh  # right-size from sacct, confirm, submit
+    ├── cleanup_pipeline.sh                # kill children → master → optional work/ purge
+    ├── ssh_config.template                # ControlMaster + ProxyJump merlot
+    └── job_*.sh / *_launcher.sbatch / *.config / *.yaml
+                                          # ready-to-edit job & pipeline templates
 ```
 
-## Safety model
+Source of truth: the official I2SysBio docs at <https://garnatxadoc.uv.es/>.
+Open an issue if you spot drift.
 
-The agent treats the cluster like any other production system:
-
-- **Read-only diagnostics** (squeue, sacct, sinfo, scontrol show, cat
-  slurm-*.out, sshare, sprio, module avail, ls, df, du_, checkdiskspace) —
-  no confirmation needed.
-- **Submitting a small sbatch job** (≤ 1 CPU, low memory, short QoS) — usually
-  no confirmation needed if it directly answers the user's request.
-- **Submitting a large job, `scancel`-ing, writing to tape, deleting files,
-  modifying shell config, force-pushing** — confirmation required first.
-
-These rules live in `SKILL.md` and apply to any agent that loads the skill.
-
-## Source of truth
-
-The official documentation at <https://garnatxadoc.uv.es/>. Every cluster
-fact in this skill was verified against the live cluster
-(`sinfo`, `sacctmgr show qos`, `module avail`, etc.) at the time of writing.
-Clusters drift — when in doubt, ask the agent to run the relevant check or
-open an issue here.
+---
 
 ## Contributing
 
-Drift updates and additional reference docs are welcome — open an issue or a
-PR. Mention the cluster command output you ran to confirm the new fact;
-that's the most useful kind of contribution as the cluster evolves.
+Drift updates and additional playbooks are welcome — open an issue or a PR.
+Mention the actual cluster output you ran to confirm the new fact; that's
+the most useful kind of contribution as the cluster evolves.
 
 ## Licence
 
-[MIT](LICENSE). The I2SysBio documentation at <https://garnatxadoc.uv.es/>
-is © I2SysBio and is **not** redistributed here.
+[MIT](LICENSE). The I2SysBio docs at <https://garnatxadoc.uv.es/> are
+© I2SysBio and are not redistributed here.
 
 ## Acknowledgment
 
-If you publish results obtained on Garnatxa, please use the official
-acknowledgment text (see
-[`skill/garnatxa-hpc/references/policies.md`](skill/garnatxa-hpc/references/policies.md))
+If you publish results obtained on Garnatxa, please use the official text
+(see [`skill/garnatxa-hpc/references/policies.md`](skill/garnatxa-hpc/references/policies.md))
 and email a copy of the paper to `i2sysbiohpc@uv.es`.
