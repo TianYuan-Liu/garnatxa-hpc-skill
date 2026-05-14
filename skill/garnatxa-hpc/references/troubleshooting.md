@@ -168,10 +168,15 @@ the job schedulable on more nodes — usually starts sooner, not later.
 "cannot be loaded due to a conflict".
 
 ```bash
-ssh garnatxa 'module purge && module avail 2>&1 | grep -i <pattern>'
-ssh garnatxa 'module spider <name>'        # exhaustive search
-ssh garnatxa 'module list'
+ssh garnatxa 'bash -lc "module purge && module avail 2>&1 | grep -i <pattern>"'
+ssh garnatxa 'bash -lc "module spider <name>"'   # exhaustive search
+ssh garnatxa 'bash -lc "module list"'
 ```
+
+> `module` is initialised in `/etc/profile.d/lmod.sh` which only runs in
+> login shells, so every `ssh garnatxa 'module …'` needs the `bash -lc`
+> wrapper. Inside an sbatch script `module` works directly — SLURM
+> sources the login files for you.
 
 Fix:
 - Typo / retired version (e.g. `biotools/1` is gone): use `module spider` to
@@ -187,7 +192,7 @@ Fix:
 `error while loading shared libraries: libhts.so.X`.
 
 ```bash
-ssh garnatxa 'module list; which samtools; ldd $(which samtools) | grep -i hts'
+ssh garnatxa 'bash -lc "module list; which samtools; ldd \$(which samtools) | grep -i hts"'
 ```
 
 Cause: `mamba activate` prepends `$CONDA_PREFIX/bin` to PATH; the loaded
@@ -214,7 +219,7 @@ CommandNotFoundError: Your shell has not been properly configured to use 'mamba 
 Or `mamba: command not found`.
 
 ```bash
-ssh garnatxa 'module list | grep -i anaconda; which mamba conda; echo $CONDA_EXE'
+ssh garnatxa 'bash -lc "module list 2>&1 | grep -i anaconda; which mamba conda; echo \$CONDA_EXE"'
 ```
 
 Cause: the `anaconda` module wasn't loaded in this shell.
@@ -229,7 +234,7 @@ the hook: `source $CONDA_PREFIX/etc/profile.d/conda.sh`.
 ## 9. Failed Singularity pull
 
 ```bash
-ssh garnatxa 'module load singularity && singularity pull -F <name>.sif <URI> 2>&1 | tail -30'
+ssh garnatxa 'bash -lc "module load singularity && singularity pull -F <name>.sif <URI> 2>&1 | tail -30"'
 ssh garnatxa 'checkdiskspace; df -h $HOME'
 ```
 

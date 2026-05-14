@@ -360,7 +360,7 @@ happened to task 22".
    | `slurmstepd: error: Detected ... oom-kill` | OOM | `--mem = MaxRSS × 1.5` |
    | `CANCELLED ... DUE TO TIME LIMIT` | TIMEOUT | bump `--time`, reconsider QoS |
    | `no such file or directory` on one input | manifest typo | fix and resubmit those indices |
-   | `bwa: Could not open index` on one node | path on `/scr` (node-local)? race? | put index on `/storage`; verify setup `COMPLETED` |
+   | `bwa: Could not open index` on one node | index path wrong, partial write, or setup job didn't finish | confirm with `ls -la <prefix>.amb …`; rerun setup if missing files; verify setup job `COMPLETED` |
    | `Disk quota exceeded` | group quota hit | Scenario 8 (archive) or delete |
    | `NODE_FAIL` | hardware blip | resubmit those tasks |
 
@@ -860,8 +860,14 @@ legacy SCP protocol — more compatible across OpenSSH versions.
 
 ### C. Within the cluster (`/scr` lifecycle)
 
-`/scr` is **scratch**, node-local, purged periodically. Pattern inside
-sbatch:
+`/scr` is **shared scratch on the same CephFS as `/home` and `/storage`** —
+verified against the live cluster (all three mounts share `fsid` and the
+same 888 T available pool). It is **NOT node-local** and is **NOT
+auto-cleaned**. Files persist forever until you delete them. Per-user
+subdir: `/scr/$USER/` (create if missing).
+
+Pattern inside an sbatch — useful when you want a tidy per-job working
+directory or when your group `/storage` quota is tight:
 
 ```bash
 mkdir -p /scr/$USER/$SLURM_JOB_ID
@@ -871,10 +877,13 @@ cp -av results/ /storage/<GROUP>/results/job_${SLURM_JOB_ID}/
 cd / && rm -rf /scr/$USER/$SLURM_JOB_ID
 ```
 
-`/storage` and `/home` are network-mounted on every compute node — no
-explicit node-to-node copy needed. `/scr` is **per-node**: result in
-`cn07:/scr/...` either gets copied out at end-of-job or rerun is cheaper
-than `ssh cn07 cp ...`.
+Because all three filesystems are the same Ceph backend, **`/scr` is not
+faster than `/storage`**. The reason to use it is organisational
+(transient outputs that don't bloat group quota) and convention (everyone
+can `mkdir /scr/$USER`).
+
+`$SCRATCH` and `$XDG_CACHE_HOME` are **not** set in Garnatxa job environments
+— resolve scratch explicitly as `/scr/$USER`.
 
 ### Confirm with user
 

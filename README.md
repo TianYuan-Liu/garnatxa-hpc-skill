@@ -23,15 +23,16 @@ merlot` to remember. No "wait, what was the right partition again."
   with bwa and put the BAMs somewhere reasonable. Ping me when done.
 
   • garnatxa ssh: 50 FASTQs in /storage/gge/Tian/seq/basecalls-2/  (1.4 TB)
-  • fairshare 0.45 — picking --qos=medium
-  • writing 50-task array, --cpus-per-task=8 --mem=20G --time=2:00:00,
+  • fairshare 0.45 — picking --qos=short
+  • writing 50-task array, --cpus-per-task=4 --mem=16G --time=2:00:00,
+    --array=1-50%50  (50 × 4 = 200 ≤ short cap of 200 CPUs/user)
     module load biotools (samtools 1.21, bwa 0.7.17)
   • submitted as job 2810123. polling every 30 s.
   …
-  • 47 min later — all 50 tasks COMPLETED.
-    mean CPU 82%, mean mem 65%, both above the 75% / 30% target
+  • 38 min later — all 50 tasks COMPLETED.
+    mean CPU 81%, mean mem 62%, both above the 75% / 30% target
   • 50 BAMs in /storage/gge/projects/run42/bams/  (280 GB)
-  • cleaned up /scr/tyuan/.run42-work
+  • cleaned up /scr/tyuan/2810123/
 
   Want me to run `samtools flagstat` on each and rsync the summary to your
   laptop?
