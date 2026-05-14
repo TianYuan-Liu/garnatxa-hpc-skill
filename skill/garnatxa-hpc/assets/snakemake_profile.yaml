@@ -1,0 +1,28 @@
+# Snakemake profile for the Garnatxa SLURM executor.
+# Use with:  snakemake --profile ./Snakeconfig.yaml
+#
+# Note on slurm_extra quoting:  outer YAML double quotes, inner literal single
+# quotes so the value is forwarded to sbatch verbatim.
+
+executor: slurm
+jobs: 200                       # max concurrent child SLURM jobs
+
+default-resources:
+    slurm_partition: "global"   # SLURM partition (NOT the QoS)
+
+set-threads:
+    # Map rule name -> --cpus-per-task and {threads} placeholder
+    example_rule_a: 1
+    example_rule_b: 8
+
+set-resources:
+    example_rule_a:
+        slurm_partition: "global"
+        mem_mb: 2000
+        slurm_extra: "' -q short '"
+        runtime: "30m"
+    example_rule_b:
+        slurm_partition: "global"
+        mem_mb: 8000
+        slurm_extra: "' -q medium '"
+        runtime: "6h"

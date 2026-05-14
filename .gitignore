@@ -1,0 +1,19 @@
+# The mirrored I2SysBio documentation is © I2SysBio.  We don't redistribute it.
+# Anyone can regenerate it with `python3 mirror.py`.
+site/
+
+# Runtime / local Claude Code state
+.claude/
+.DS_Store
+__pycache__/
+*.pyc
+
+# Optimization noise
+garnatxa-hpc-workspace/description-opt.log
+garnatxa-hpc-workspace/live-verify-timing.json
+
+# OS / editor cruft
+*.swp
+*.swo
+.idea/
+.vscode/
