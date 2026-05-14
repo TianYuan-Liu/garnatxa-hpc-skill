@@ -27,6 +27,19 @@ module whatis NAME          one-line description
 module help NAME            help text
 ```
 
+> **Operator note**: `module` is **not in non-interactive SSH shells** —
+> Lmod is initialized in `/etc/profile.d/lmod.sh` which only runs in login
+> shells. When you (the agent) call modules over SSH, wrap them in
+> `bash -lc`:
+>
+> ```bash
+> ssh garnatxa 'bash -lc "module avail | head -20"'
+> ssh garnatxa 'bash -lc "module load anaconda && mamba env list"'
+> ```
+>
+> Inside an `sbatch` script `module` works directly — SLURM sources the
+> login files for you.
+
 ### Switching versions
 
 Loading a new version of an already-loaded module swaps automatically:
@@ -156,6 +169,15 @@ mamba env create -f environment.yml
 
 Inside an `sbatch` script choose **one** of `module load …` or
 `mamba activate …` for the tools you're calling — not both.
+
+**The single most common silent failure** this causes is an **htslib
+version mismatch**. Concretely: you `module load samtools` (samtools 1.21
+plus its bundled htslib), then `mamba activate myenv` which has its own
+`bcftools` + `htslib` on `PATH`/`LD_LIBRARY_PATH`. Calls to `bcftools`
+then load samtools' htslib at runtime, producing cryptic CRAM resolution
+errors or silently-wrong results on edge cases. If you need samtools AND
+bcftools together, install both in the same mamba env, or load both from
+the `biotools` bundle which already pins compatible versions.
 
 ## Singularity
 

@@ -1,5 +1,32 @@
 # Connecting to Garnatxa
 
+## Preflight one-liner (run first)
+
+Before debugging anything, verify SSH + key + Garnatxa tooling all work:
+
+```bash
+ssh -o BatchMode=yes -o ConnectTimeout=5 garnatxa '
+  whoami; id -Gn; sshare -U --noheader -P | head -1
+  command -v squeue_ tapecopy >/dev/null && echo "tooling: ok" || echo "tooling: MISSING"
+  ssh -o BatchMode=yes -o ConnectTimeout=3 merlot true && echo "merlot: ok" || echo "merlot: FAIL"
+'
+```
+
+Failure → fix mapping:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `Permission denied (publickey)` | Key missing on cluster | `ssh-copy-id garnatxa` (will prompt for password). |
+| `Connection timed out` / `No route to host` | VPN down | Reconnect `i2sysbio.ovpn`, then retry. |
+| `Host key verification failed` | Cluster reinstall or MITM | Verify fingerprint matches `SHA256:7fUYLmRdI6b1TMMz92ln3bGFCw8J9mJOv3jniz7Xt8c`. If yes: `ssh-keygen -R garnatxa.srv.cpd` and retry. If no: stop. |
+| Auth ok but `Invalid account` later | Account inactive > 1 year | Open ticket. |
+
+The asset [`assets/preflight.sh`](../assets/preflight.sh) is the agent's
+canonical preflight; the asset
+[`assets/ssh_config.template`](../assets/ssh_config.template) shows the
+`~/.ssh/config` block (with `ControlMaster` + `ProxyJump merlot`) that
+makes repeated SSH round-trips fast.
+
 ## Hostnames and endpoints
 
 | Purpose | Value |

@@ -50,24 +50,26 @@ get demoted by fairshare. `extra` is reserved for justified urgent jobs.
 
 **This skill turns you into an operator on the cluster, not just an info
 source.** If the user has SSH access configured locally (`ssh garnatxa` works
-without a password), you should reach into the cluster directly to diagnose
-and act, rather than asking the user to run commands and paste output back.
+without a password), reach into the cluster directly to diagnose and act,
+rather than asking the user to run commands and paste output back.
 
-### Default operating mode
+**Canonical operator guide**: read [`references/operator-loop.md`](references/operator-loop.md)
+first when you're asked to do anything on the cluster. It covers preflight,
+the read-only diagnostic loop, the submit/wait/diagnose pattern, pipeline
+mode, when to confirm, and recovery from common failures.
 
-1. **Identify what the user is trying to do** — connect, submit, debug,
-   optimise, move data, archive, etc. Use the decision table below to jump to
-   the right reference.
-2. **Reach into the cluster directly when it would help.** SSH is set up;
-   read-only diagnostic commands are safe to run without asking. Examples:
-   `ssh garnatxa 'squeue -u $USER'`, `sacct -u $USER --starttime=...`,
-   `squeue_ -u $USER`, `sacct_ -b -u $USER`, `scontrol show job <ID>`,
-   `tail slurm-<id>.out`, `module avail`, `sinfo`, `sshare`, `sprio`.
-3. **Confirm before destructive or shared-impact actions.** Submitting a job
-   that consumes hundreds of CPUs, `scancel -u $USER`, `rm -rf`, `tapecopy`
-   of TBs, modifying `~/.bashrc` or shell config, force-pushing to GitLab,
-   writing outside the user's `$HOME` / `/storage/<group>` — these need an
-   explicit "yes" from the user first.
+### Default operating mode (summary)
+
+1. **Preflight every session** using [`assets/preflight.sh`](assets/preflight.sh)
+   — one SSH probe that verifies VPN, key auth, Garnatxa-only tooling, and
+   the merlot hop. Map the failure mode to a fix instead of looping retries.
+2. **Reach into the cluster directly when it would help.** Read-only
+   diagnostics are safe to run without asking: `squeue -u $USER`, `squeue_`,
+   `sacct`, `sacct_`, `sinfo`, `sshare`, `sprio`, `scontrol show job`,
+   reading `slurm-*.out`/`.err`, `module avail`.
+3. **Confirm before destructive or shared-impact actions** — `scancel`,
+   `rm -rf` outside `/tmp`, large sbatch submissions, tape writes, shell
+   config edits, GitLab pushes, anything on someone else's `/storage/<group>`.
 4. **Read only the reference file(s) you need.** The references are
    self-contained deep dives; don't load them all eagerly.
 5. **Answer with concrete Garnatxa-specific commands and outputs** — right
@@ -77,6 +79,30 @@ and act, rather than asking the user to run commands and paste output back.
    (≥ 75 % CPU and memory efficiency), no heavy work on the login node, no
    Git pushes > 10 MB or with data files, no Docker (use Singularity), and
    the required acknowledgment in papers.
+
+### Operator-mode gotchas you must internalise
+
+These come from running the skill against the real cluster — they bite
+agents who don't know about them:
+
+- **`module` is NOT available in non-interactive SSH.** Wrap module calls in
+  `bash -lc`: `ssh garnatxa 'bash -lc "module load anaconda && mamba env list"'`.
+  Inside an sbatch script `module` works directly.
+- **`/scr` is Ceph-shared (not node-local) and is never auto-cleaned.** Use
+  `/scr/$USER/` and clean up at end of job. `$SCRATCH` and `$XDG_CACHE_HOME`
+  are both empty inside jobs — don't rely on them.
+- **`/tape2` is only mounted on `merlot`.** Tape work always starts with
+  `ssh merlot`. `tapecopy -l` works for any user; `ls /tape2/<CODE>` only
+  for the owning group.
+- **Compute-node SSH (`ssh cn07 …`) only works while you have a live job
+  there.** Nodes self-identify as `osd00..osd13` (alias of `cn00..cn13`);
+  resolve via `scontrol show job <id> | grep NodeList=`.
+- **`scontrol show job <id>` only finds running or very recently finished
+  jobs.** For historical jobs use `sacct -j <id> -P --format=workdir%80`.
+- **Log filenames are user-defined.** Don't assume `slurm-<id>.out` — read
+  the sbatch script's `--output=` or `find` near the WorkDir.
+- **`sacct_` and `squeue_` print harmless `tput` warnings under
+  non-interactive SSH.** Prepend `TERM=xterm` for clean output.
 
 ### Typical diagnostic loop (read-only, run freely)
 
@@ -100,29 +126,49 @@ fairshare depression (heavy recent use → expect longer queue waits).
 
 | If the user is asking about… | Read |
 |---|---|
-| First login, SSH config, password change, VPN, firewall, PuTTY, key setup | `references/connecting.md` |
-| `sbatch`, `srun`, `sacct`, `squeue`, `scancel`, `sinfo`, `plotjob`, `squeue_`, `sacct_`, job templates, arrays, dependencies, MPI, OpenMP, interactive jobs, QoS choice, why a job is `PD`/queued | `references/slurm.md` |
-| `module` commands, mamba/conda envs, Singularity/Podman, custom modulefiles, Docker (= "use Singularity"), the `biotools` bundle | `references/software.md` |
-| Nextflow `.config` / `.nf`, Snakemake `Snakefile` / `Snakeconfig.yaml`, master/launcher sbatch for pipelines, `work/` cleanup, DAG/report generation | `references/pipelines.md` |
-| `/home`, `/storage`, `/scr`, quotas, `scp`/`rsync`/WinSCP, `merlot`, `tapecopy`, splitting big files, recalling from tape | `references/storage.md` |
-| Quotas in detail, fairshare/priority, who can request accounts, acknowledgment text, account inactivity, VM/IaaS requests | `references/policies.md` |
-| GitLab on the cluster (clone, push, SSH keys), VSCode + rsync workflow, why Remote-SSH into Garnatxa is discouraged | `references/gitlab-vscode.md` |
-| Hardware (cores, RAM, network, Ceph capacity, tape library, GPUs — there are none), rates for external groups | `references/hardware.md` |
+| **How to actually operate the cluster as an agent** — preflight, submit/wait/diagnose loop, when to confirm, recovery patterns | [`references/operator-loop.md`](references/operator-loop.md) **← read this first** |
+| End-to-end playbooks for 14 common operations (run a pipeline, debug a failed array, archive a project, reset, etc.) | [`references/scenarios.md`](references/scenarios.md) |
+| Symptom → diagnostic → fix for ~20 failure modes (OOM, TIMEOUT, AssocGrpCpuLimit, htslib mismatch, …) | [`references/troubleshooting.md`](references/troubleshooting.md) |
+| First login, SSH config, password change, VPN, firewall, PuTTY, key setup | [`references/connecting.md`](references/connecting.md) |
+| `sbatch`, `srun`, `sacct`, `squeue`, `scancel`, `sinfo`, `plotjob`, `squeue_`, `sacct_`, job templates, arrays, dependencies, MPI, OpenMP, interactive jobs, QoS choice, why a job is `PD`/queued | [`references/slurm.md`](references/slurm.md) |
+| `module` commands, mamba/conda envs, Singularity/Podman, custom modulefiles, Docker (= "use Singularity"), the `biotools` bundle | [`references/software.md`](references/software.md) |
+| Nextflow `.config` / `.nf`, Snakemake `Snakefile` / `Snakeconfig.yaml`, master/launcher sbatch for pipelines, `work/` cleanup, DAG/report generation | [`references/pipelines.md`](references/pipelines.md) |
+| `/home`, `/storage`, `/scr`, quotas, `scp`/`rsync`/WinSCP, `merlot`, `tapecopy`, splitting big files, recalling from tape | [`references/storage.md`](references/storage.md) |
+| Quotas in detail, fairshare/priority, who can request accounts, acknowledgment text, account inactivity, VM/IaaS requests | [`references/policies.md`](references/policies.md) |
+| GitLab on the cluster (clone, push, SSH keys), VSCode + rsync workflow, why Remote-SSH into Garnatxa is discouraged | [`references/gitlab-vscode.md`](references/gitlab-vscode.md) |
+| Hardware (cores, RAM, network, Ceph capacity, tape library, GPUs — there are none), rates for external groups | [`references/hardware.md`](references/hardware.md) |
 
 ### Bundled assets
 
-`assets/` contains ready-to-edit job scripts and pipeline configs. Copy and adapt
-rather than writing from scratch:
+`assets/` contains ready-to-edit job scripts, pipeline configs, and **operator
+helpers the agent should use itself**:
 
-- `job_serial.sh` — single-CPU job (short QoS).
-- `job_threaded.sh` — OpenMP / multi-threaded job (one node, N CPUs).
-- `job_mpi.sh` — MPI job across nodes.
-- `job_array.sh` — array job with one task per input file.
-- `launcher_dependency.sh` — orchestrator that runs a setup job, then submits
-  an array gated on its success.
-- `nextflow.config`, `nextflow_launcher.sbatch` — Nextflow on the SLURM executor.
-- `snakemake_profile.yaml`, `snakemake_launcher.sbatch` — Snakemake on the SLURM
-  executor (via a per-user mamba env).
+Operator helpers (the agent runs these):
+
+- [`preflight.sh`](assets/preflight.sh) — one-shot SSH probe verifying VPN, key
+  auth, Garnatxa-only tooling (`squeue_`, `tapecopy`, …), and the merlot hop.
+- [`wait_for_job.sh`](assets/wait_for_job.sh) — poll a job to completion from
+  the local side (the 8-hour SSH idle timeout breaks naive `sbatch --wait`).
+- [`resubmit_with_bumped_resources.sh`](assets/resubmit_with_bumped_resources.sh)
+  — read a finished job's MaxRSS / elapsed from `sacct_`, regenerate the
+  sbatch with 1.5× headroom, ask for confirmation, submit.
+- [`cleanup_pipeline.sh`](assets/cleanup_pipeline.sh) — cancel pipeline
+  children first then the master, optionally purge `work/` after confirm.
+- [`ssh_config.template`](assets/ssh_config.template) — `~/.ssh/config`
+  block with ControlMaster persistence + ProxyJump to merlot.
+
+Job-script templates (the agent adapts these for the user):
+
+- [`job_serial.sh`](assets/job_serial.sh) — single-CPU job (short QoS).
+- [`job_threaded.sh`](assets/job_threaded.sh) — OpenMP / multi-threaded job.
+- [`job_mpi.sh`](assets/job_mpi.sh) — MPI job across nodes.
+- [`job_array.sh`](assets/job_array.sh) — array job with one task per input.
+- [`launcher_dependency.sh`](assets/launcher_dependency.sh) — orchestrator
+  that runs a setup job then submits an array gated on its success.
+- [`nextflow.config`](assets/nextflow.config), [`nextflow_launcher.sbatch`](assets/nextflow_launcher.sbatch)
+  — Nextflow on the SLURM executor.
+- [`snakemake_profile.yaml`](assets/snakemake_profile.yaml), [`snakemake_launcher.sbatch`](assets/snakemake_launcher.sbatch)
+  — Snakemake on the SLURM executor (via a per-user mamba env).
 
 ## Hard rules the user is expected to follow
 

@@ -190,19 +190,41 @@ rm -rf work
 - Mixing partition and QoS: `queue` is partition, QoS goes through
   `clusterOptions`.
 
+### Recovering from a killed master
+
+If the master is `scancel`-led or hits TIMEOUT, its child jobs **continue
+in the queue** until they finish naturally or hit their own walltime.
+**Don't `scancel` the master alone** — kill children first, then the
+master. [`assets/cleanup_pipeline.sh`](../assets/cleanup_pipeline.sh)
+implements the right ordering:
+
+```bash
+# 1. List children (Nextflow names them nf-PROCESS_NAME)
+ssh garnatxa "squeue -u $USER -h -o '%i %j' | grep '^[0-9]* nf-'"
+
+# 2. Cancel children by name pattern, then master
+ssh garnatxa "squeue -u $USER -h -o '%i %j' | awk '\$2 ~ /^nf-/ {print \$1}' | xargs -r scancel"
+ssh garnatxa "scancel <MASTER_JID>"
+
+# 3. To resume: leave `work/` alone, just rerun with -resume
+sbatch nextflow_launcher.sbatch ./NextflowJob.nf ./NextflowJob.config
+```
+
 ---
 
 ## Snakemake
 
 ### Install (per user)
 
-Snakemake is **not** a system module. Install once via mamba:
+Snakemake is **not** a system module — confirmed against the cluster
+(`module avail snakemake` returns nothing). Each user installs it once via
+mamba. You also need the SLURM **executor plugin** (Snakemake 8+ split
+SLURM out into a separate package):
 
 ```bash
 module load anaconda
-mamba create -n snakemake
+mamba create -n snakemake -c bioconda -c conda-forge snakemake snakemake-executor-plugin-slurm
 mamba activate snakemake
-mamba install -c bioconda snakemake
 ```
 
 Activate the env in every session before using `snakemake`.

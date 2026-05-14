@@ -1,0 +1,22 @@
+# Drop this into ~/.ssh/config (adapt User, IdentityFile, and ControlPath
+# to your system). The ControlMaster bits make repeated agent round-trips
+# fast — one TCP/TLS handshake, many commands.
+
+Host garnatxa garnatxa.uv.es garnatxa.srv.cpd
+  HostName garnatxa.srv.cpd
+  User <YOUR_GARNATXA_USERNAME>
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  Port 22
+  ServerAliveInterval 60
+  # ControlMaster keeps a persistent connection that subsequent ssh
+  # invocations multiplex over. Big speed-up for diagnostic round-trips.
+  ControlMaster auto
+  ControlPath ~/.ssh/cm-%r@%h:%p
+  ControlPersist 10m
+
+# Hop to merlot through the login node (tape work).
+Host merlot
+  ProxyJump garnatxa
+  User <YOUR_GARNATXA_USERNAME>
+  ServerAliveInterval 60

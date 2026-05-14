@@ -158,6 +158,18 @@ Cap: 30 GB RAM, 20 CPUs, 1 day max.
 
 ## Monitoring
 
+> **Operator notes for the agent**:
+>
+> - `sacct_` and `squeue_` (the Garnatxa efficiency tools) emit
+>   `tput: No value for $TERM` warnings under non-interactive SSH. Prepend
+>   `TERM=xterm` for clean output: `ssh garnatxa 'TERM=xterm sacct_ -b -u $USER'`.
+> - `scontrol show job <id>` only works for **running or just-finished**
+>   jobs (the scheduler purges historical state quickly). For older jobs
+>   use `sacct -j <id> -P --format=jobid,state,exitcode,workdir%80`.
+> - **Log filenames are user-defined.** The sbatch script's `--output=`
+>   directive controls it. Don't assume `slurm-<id>.out` — read the
+>   script, or `find $(sacct -j <id> -P --format=workdir%120 | tail -1) -name "*<id>*"`.
+
 ### `squeue` — currently queued or running
 
 ```bash
