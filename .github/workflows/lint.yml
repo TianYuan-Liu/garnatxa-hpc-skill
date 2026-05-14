@@ -1,0 +1,92 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  skill:
+    name: skill structure & links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Lint skill (frontmatter, internal links, mentioned files, shebangs)
+        run: python3 scripts/lint_skill.py
+
+  shellcheck:
+    name: shellcheck agent-helper scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Run shellcheck on agent-helper scripts
+        run: |
+          # Agent-driven scripts must be lint-clean. The job-script
+          # templates (job_*.sh, *_launcher.sbatch) contain literal
+          # <PLACEHOLDER> markers that the user replaces — they are
+          # not expected to pass shellcheck as-is, so we exclude them.
+          set -e
+          for f in \
+            skill/garnatxa-hpc/assets/preflight.sh \
+            skill/garnatxa-hpc/assets/wait_for_job.sh \
+            skill/garnatxa-hpc/assets/resubmit_with_bumped_resources.sh \
+            skill/garnatxa-hpc/assets/cleanup_pipeline.sh \
+            skill/garnatxa-hpc/assets/launcher_dependency.sh \
+            scripts/*.py
+          do
+            if [[ "$f" == *.sh ]]; then
+              echo "→ shellcheck $f"
+              shellcheck --severity=warning "$f"
+            fi
+          done
+
+  package:
+    name: package validates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Validate skill packages
+        run: |
+          # Minimal structural validation — the upstream skill-creator's
+          # package_skill.py runs the same checks but isn't on PyPI.
+          # We re-implement the essential ones here so the workflow has
+          # no external dependencies.
+          python3 - <<'PY'
+          import re, sys, zipfile, io
+          from pathlib import Path
+
+          skill = Path("skill/garnatxa-hpc")
+          assert (skill / "SKILL.md").is_file(), "SKILL.md missing"
+
+          text = (skill / "SKILL.md").read_text()
+          assert text.startswith("---\n"), "SKILL.md frontmatter must start with ---"
+          end = text.find("\n---\n", 4)
+          assert end > 0, "frontmatter not terminated"
+          front = text[4:end]
+          assert re.search(r"^name:\s*garnatxa-hpc\s*$", front, re.M), \
+              "frontmatter `name` must be `garnatxa-hpc`"
+          assert re.search(r"^description:\s+\S", front, re.M), \
+              "frontmatter `description` missing or empty"
+
+          # Sanity: produce an in-memory zip and check it's non-empty
+          buf = io.BytesIO()
+          with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+              for p in skill.rglob("*"):
+                  if p.is_file():
+                      z.write(p, p.relative_to(skill.parent))
+          size = len(buf.getvalue())
+          assert size > 10_000, f"packaged skill is suspiciously small ({size} bytes)"
+          print(f"✓ skill packages cleanly ({size:,} bytes)")
+          PY

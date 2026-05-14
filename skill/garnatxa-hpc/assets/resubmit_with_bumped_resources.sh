@@ -24,10 +24,10 @@ FACTOR="${3:-1.5}"
 
 echo "reading actual usage of $JOBID from sacct_..." >&2
 
-# Pull peak RSS (KB) and elapsed seconds from sacct
-read -r MAXRSS_KB ELAPSED REQMEM REQCPU < <(ssh garnatxa "
+# Pull peak RSS (KB), elapsed, and requested mem from sacct
+read -r MAXRSS_KB ELAPSED REQMEM < <(ssh garnatxa "
   sacct -j $JOBID.batch -n -X -P \
-    --format=maxrss,elapsed,reqmem,reqcpus \
+    --format=maxrss,elapsed,reqmem \
   | head -1 | tr '|' ' '
 ")
 

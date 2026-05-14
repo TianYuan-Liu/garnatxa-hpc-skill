@@ -1,5 +1,7 @@
 # garnatxa-hpc-skill
 
+[![lint](https://github.com/TianYuan-Liu/garnatxa-hpc-skill/actions/workflows/lint.yml/badge.svg)](https://github.com/TianYuan-Liu/garnatxa-hpc-skill/actions/workflows/lint.yml)
+
 A [Claude Code](https://claude.com/claude-code) skill that turns Claude Code
 into a **hands-on operator** for the **Garnatxa HPC cluster** at
 [I2SysBio](https://www.uv.es/institute-integrative-systems-biology-i2sysbio/en/)
