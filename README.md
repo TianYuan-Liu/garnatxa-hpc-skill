@@ -2,7 +2,7 @@
 
 [![lint](https://github.com/TianYuan-Liu/garnatxa-hpc-skill/actions/workflows/lint.yml/badge.svg)](https://github.com/TianYuan-Liu/garnatxa-hpc-skill/actions/workflows/lint.yml)
 
-**Treat Garnatxa like your laptop.**
+**Your agent is the HPC user. You're just the scientist.**
 
 Tell [Claude Code](https://claude.com/claude-code) what you want done.
 It finds your data on the cluster, loads the right modules, writes the right
