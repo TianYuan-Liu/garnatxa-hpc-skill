@@ -1,6 +1,6 @@
 # Operator loop — how the agent actually runs Garnatxa
 
-This is the canonical guide for **Claude Code acting as an operator** on
+This is the canonical guide for **the agent acting as an operator** on
 Garnatxa, not just answering questions about it. Read this when the user
 asks you to do anything on the cluster (check a job, submit work, debug a
 failure, archive data, etc.).

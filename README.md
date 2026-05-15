@@ -4,11 +4,13 @@
 
 **Your agent is the HPC user. You're just the scientist.**
 
-Tell [Claude Code](https://claude.com/claude-code) what you want done.
-It finds your data on the cluster, loads the right modules, writes the right
-sbatch, picks the right QoS, submits to the right partition, waits for it to
-finish, reads the efficiency numbers, diagnoses failures, and ships the
-results back to your machine.
+Tell your coding agent — [Claude Code](https://claude.com/claude-code),
+[Codex CLI](https://developers.openai.com/codex), or
+[Gemini CLI](https://github.com/google-gemini/gemini-cli) — what you want
+done. It finds your data on the cluster, loads the right modules, writes
+the right sbatch, picks the right QoS, submits to the right partition,
+waits for it to finish, reads the efficiency numbers, diagnoses failures,
+and ships the results back to your machine.
 
 No sbatch headers. No `squeue` refreshing in the other terminal. No `ssh
 merlot` to remember. No "wait, what was the right partition again."
@@ -125,17 +127,32 @@ skill was published.
 You need:
 
 - A working `ssh garnatxa` (i.e. VPN connected, key registered).
-- [Claude Code](https://claude.com/claude-code).
+- One of [Claude Code](https://claude.com/claude-code),
+  [Codex CLI](https://developers.openai.com/codex), or
+  [Gemini CLI](https://github.com/google-gemini/gemini-cli).
+
+The skill follows the [Agent Skills](https://www.agensi.io/learn/agent-skills-open-standard)
+open standard — the same `SKILL.md` file works in every agent that
+supports it. Pick the symlink target for the agent(s) you use:
 
 ```sh
 git clone https://github.com/TianYuan-Liu/garnatxa-hpc-skill.git
-ln -sfn "$PWD/garnatxa-hpc-skill/skill/garnatxa-hpc" ~/.claude/skills/garnatxa-hpc
+SRC="$PWD/garnatxa-hpc-skill/skill/garnatxa-hpc"
+
+# Claude Code (personal skills directory)
+mkdir -p ~/.claude/skills && ln -sfn "$SRC" ~/.claude/skills/garnatxa-hpc
+
+# Codex CLI (canonical) + Gemini CLI (via the .agents/ alias)
+mkdir -p ~/.agents/skills && ln -sfn "$SRC" ~/.agents/skills/garnatxa-hpc
 ```
 
-Open a new Claude Code session anywhere. It auto-loads when the conversation
-touches Garnatxa. If `ssh garnatxa` isn't set up yet, just open Claude Code
-and say *"set me up to use the Garnatxa cluster from this laptop"* — it'll
-walk you through it.
+If you only use Gemini CLI and prefer its native path, symlink into
+`~/.gemini/skills/` instead — Gemini picks up either location.
+
+Open a new agent session anywhere. It auto-loads when the conversation
+touches Garnatxa. If `ssh garnatxa` isn't set up yet, just open your
+agent and say *"set me up to use the Garnatxa cluster from this laptop"*
+— it'll walk you through it.
 
 ---
 
