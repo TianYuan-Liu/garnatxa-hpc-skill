@@ -133,26 +133,68 @@ You need:
 
 The skill follows the [Agent Skills](https://www.agensi.io/learn/agent-skills-open-standard)
 open standard — the same `SKILL.md` file works in every agent that
-supports it. Pick the symlink target for the agent(s) you use:
+supports it.
+
+### 1. Clone the repo (once)
+
+Pick a stable location — your agents will read from this path going forward.
 
 ```sh
-git clone https://github.com/TianYuan-Liu/garnatxa-hpc-skill.git
-SRC="$PWD/garnatxa-hpc-skill/skill/garnatxa-hpc"
-
-# Claude Code (personal skills directory)
-mkdir -p ~/.claude/skills && ln -sfn "$SRC" ~/.claude/skills/garnatxa-hpc
-
-# Codex CLI (canonical) + Gemini CLI (via the .agents/ alias)
-mkdir -p ~/.agents/skills && ln -sfn "$SRC" ~/.agents/skills/garnatxa-hpc
+git clone https://github.com/TianYuan-Liu/garnatxa-hpc-skill.git ~/garnatxa-hpc-skill
 ```
 
-If you only use Gemini CLI and prefer its native path, symlink into
-`~/.gemini/skills/` instead — Gemini picks up either location.
+### 2. Link it into your agent's skills directory
 
-Open a new agent session anywhere. It auto-loads when the conversation
-touches Garnatxa. If `ssh garnatxa` isn't set up yet, just open your
-agent and say *"set me up to use the Garnatxa cluster from this laptop"*
-— it'll walk you through it.
+Run **only the line for the agent(s) you use**. Each command creates a
+symlink, so the agent reads directly from your clone — no copy, no
+duplicate to keep in sync.
+
+```sh
+SRC=~/garnatxa-hpc-skill/skill/garnatxa-hpc
+
+# Claude Code
+mkdir -p ~/.claude/skills && ln -sfn "$SRC" ~/.claude/skills/garnatxa-hpc
+
+# Codex CLI
+mkdir -p ~/.agents/skills && ln -sfn "$SRC" ~/.agents/skills/garnatxa-hpc
+
+# Gemini CLI
+mkdir -p ~/.gemini/skills && ln -sfn "$SRC" ~/.gemini/skills/garnatxa-hpc
+```
+
+Tip: Codex CLI and Gemini CLI both also read `~/.agents/skills/`, so one
+symlink there covers both if you use them side by side.
+
+### 3. Try it
+
+Open a new agent session anywhere and ask something Garnatxa-ish, e.g.
+*"do I have any running jobs on garnatxa?"* — the skill auto-loads when
+the conversation touches the cluster.
+
+If `ssh garnatxa` isn't set up yet, say *"set me up to use the Garnatxa
+cluster from this laptop"* and the agent will walk you through VPN, key
+install, and SSH config.
+
+### Updating
+
+Because the symlink points at your clone, a single `git pull` updates
+every agent that's linked to it. No re-linking needed — new sessions
+pick up the changes immediately.
+
+```sh
+cd ~/garnatxa-hpc-skill && git pull
+```
+
+### Uninstalling
+
+Remove only the symlink for whichever agent(s) you set up; your clone
+stays intact in case you want to re-link later.
+
+```sh
+rm ~/.claude/skills/garnatxa-hpc      # Claude Code
+rm ~/.agents/skills/garnatxa-hpc      # Codex CLI
+rm ~/.gemini/skills/garnatxa-hpc      # Gemini CLI
+```
 
 ---
 
