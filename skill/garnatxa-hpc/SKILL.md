@@ -103,6 +103,17 @@ agents who don't know about them:
   the sbatch script's `--output=` or `find` near the WorkDir.
 - **`sacct_` and `squeue_` print harmless `tput` warnings under
   non-interactive SSH.** Prepend `TERM=xterm` for clean output.
+- **`source .../conda.sh; conda activate X 2>/dev/null || true` is a
+  trap.** If `X` doesn't exist, activation silently fails and `python3`
+  quietly resolves to base (no error, just a `ModuleNotFoundError` later
+  for packages you "know" are installed). Drop the `|| true`, or verify
+  the env exists first with `conda env list`.
+- **Lmod module names are case-sensitive.** `module avail SAMTOOLS`
+  prints `samtools/1.21` (case-insensitive substring match), but
+  `module load SAMTOOLS` errors with "unknown module" — copy the name
+  exactly as `module avail` printed it. The install dir
+  `/storage/apps/SAMTOOLS/` being uppercase is unrelated to the
+  modulefile name.
 
 ### Typical diagnostic loop (read-only, run freely)
 
