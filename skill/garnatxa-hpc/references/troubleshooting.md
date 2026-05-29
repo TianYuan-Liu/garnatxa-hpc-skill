@@ -478,6 +478,27 @@ Causes & fixes:
   module load anaconda && mamba activate myenv
   python -c "import sys; print(sys.executable)"   # debug line
   ```
+- **`GLIBCXX_3.4.29 not found` (conda env + login shell)**: the error
+  ```
+  ImportError: .../gcc/9.4.0/lib64/libstdc++.so.6: version `GLIBCXX_3.4.29'
+  not found (required by .../site-packages/numpy/_core/_multiarray_umath...)
+  ```
+  on numpy ≥2 / torch / scipy means an **old gcc module's `libstdc++` is
+  shadowing the conda env's** via `LD_LIBRARY_PATH`. It is NOT a broken
+  install — the same env imports fine when run without a login shell. It
+  bites when you launch the env python through `bash -lc` (which auto-loads
+  the gcc module). Fixes, cheapest first:
+  ```bash
+  # 1. Run the env python by full path, NO login shell (preferred):
+  ssh garnatxa '/storage/<grp>/envs/myenv/bin/python -c "import numpy, torch"'
+  # 2. Inside a script that must use a login shell: drop the module first
+  module purge
+  # 3. Or force the env's own libstdc++ ahead of the module's:
+  export LD_LIBRARY_PATH=/storage/<grp>/envs/myenv/lib:$LD_LIBRARY_PATH
+  ```
+  sbatch scripts that call the env python directly and load no modules are
+  already immune — this is almost always an interactive/SSH-probe artifact,
+  not a job failure.
 - **Exit 127**: PATH not set or binary not on this node. Verify in
   `interactive` first.
 - **`FILES=(data/*)` is empty**: working directory isn't where you think.

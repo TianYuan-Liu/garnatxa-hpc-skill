@@ -35,6 +35,14 @@ Always-true facts you should not forget — most have bitten people:
 - **Never mix `module load <tool>` and `mamba activate <env>` for the same
   tools in the same sbatch.** Pick one source of binaries; the second one
   silently shadows paths and `htslib` etc.
+- **To run/verify a conda env, call its python by full path with NO login
+  shell.** `bash -lc` auto-loads an old gcc module whose `libstdc++`
+  shadows the env's via `LD_LIBRARY_PATH`, so compiled extensions die with
+  `GLIBCXX_3.4.29 not found` (numpy ≥2, torch, scipy). Use
+  `ssh garnatxa '/storage/<grp>/envs/myenv/bin/python -c "import numpy"'`,
+  not `ssh garnatxa 'bash -lc "...python..."'`. The same env imports fine
+  in a real job — this is a login-shell artifact, not a broken install.
+  See `troubleshooting.md` § 19.
 - **Read-only diagnostics need no confirmation.** Destructive or
   shared-impact actions do — see § 5.
 

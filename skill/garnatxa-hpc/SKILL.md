@@ -108,6 +108,22 @@ agents who don't know about them:
   quietly resolves to base (no error, just a `ModuleNotFoundError` later
   for packages you "know" are installed). Drop the `|| true`, or verify
   the env exists first with `conda env list`.
+- **`bash -lc` poisons conda envs via the auto-loaded gcc module.** The
+  login shell auto-loads an old gcc module (e.g. `gcc/9.4.0`) that prepends
+  `/opt/ohpc/.../gcc/9.4.0/lib64` to `LD_LIBRARY_PATH`. Its ancient
+  `libstdc++.so.6` then shadows the newer one your conda env ships, and
+  compiled extensions blow up with
+  `ImportError: ... libstdc++.so.6: version `GLIBCXX_3.4.29' not found`
+  (numpy ≥2, torch, scipy, …). It is **not** a broken install — the same
+  env imports fine in a real job. To run / verify a conda env, call its
+  python by **full path with NO login shell**:
+  `ssh garnatxa '/storage/<grp>/envs/myenv/bin/python -c "import numpy"'`
+  — not `ssh garnatxa 'bash -lc "...python..."'`. sbatch scripts are
+  already safe (they call the env python directly and load no modules).
+  If you genuinely need a login shell, `module purge` first, or
+  `export LD_LIBRARY_PATH=<env>/lib:$LD_LIBRARY_PATH`. Corollary: only use
+  `bash -lc` over SSH when you actually need `module`; never wrap conda-env
+  python in it.
 - **Lmod module names are case-sensitive.** `module avail SAMTOOLS`
   prints `samtools/1.21` (case-insensitive substring match), but
   `module load SAMTOOLS` errors with "unknown module" — copy the name
