@@ -74,7 +74,7 @@ Map the `ssh` exit signature to a recovery — don't loop retries blindly:
 | Symptom | Cause | Fix the user must do |
 |---|---|---|
 | `Permission denied (publickey)` | Key missing on the cluster | `ssh-copy-id garnatxa` (with password). Or add key to GitLab if push-related. |
-| `Connection timed out` / `No route to host` | VPN down | Reconnect `i2sysbio.ovpn`. Verify with `ping garnatxa.srv.cpd` after. |
+| `Connection timed out` / `No route to host` | VPN down | Reconnect the VPN. On **macOS** you can bring it up yourself with [`assets/vpn_connect_macos.sh`](../assets/vpn_connect_macos.sh) (the human answers secure popups for the credentials); otherwise have the user reconnect `i2sysbio.ovpn`. Verify with `nc -z -w6 garnatxa.srv.cpd 22` after. |
 | `Host key verification failed` | Cluster reinstall or MITM | Verify fingerprint matches `SHA256:7fUYLmRdI6b1TMMz92ln3bGFCw8J9mJOv3jniz7Xt8c` from `connecting.md`. If yes, `ssh-keygen -R garnatxa.srv.cpd` then retry. If no — stop, alert user. |
 | `Invalid account` / blocked | Account inactive > 1 year | Ticket via <https://garnatxadoc.uv.es/support>. |
 | Auth ok but `whoami` says `root` or wrong user | Wrong SSH config | Check `~/.ssh/config` `User` field. |

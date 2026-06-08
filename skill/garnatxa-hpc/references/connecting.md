@@ -67,17 +67,73 @@ Two options:
 
 Clients per OS:
 
-- macOS: `openvpn-connect-3.3.6.4368_signed.dmg` (OpenVPN Connect 3.3.6).
+- macOS: `openvpn-connect-3.3.6.4368_signed.dmg` (OpenVPN Connect 3.3.6) **or**
+  the `openvpn` CLI via Homebrew (`brew install openvpn`).
 - Windows: `OpenVPN-2.5.7-I602-amd64.msi` (OpenVPN 2.5.7).
 - Linux: distro package `openvpn`.
 
-### macOS setup
+### macOS setup (GUI — OpenVPN Connect)
 
 1. Download `i2sysbio.ovpn`.
 2. Install `openvpn-connect-3.3.6.4368_signed.dmg`.
 3. Open OpenVPN Connect → **File** tab → **Browse** → select `i2sysbio.ovpn`.
 4. Enter Garnatxa username + password → **Connect**.
 5. Reconnect each session from the menu-bar icon (`i2sysbio` profile).
+
+### macOS setup (CLI — Homebrew + openvpn)
+
+Use this when you want to connect from the terminal, script it, or let an agent
+bring the VPN up. The catch on macOS: `sudo openvpn ./i2sysbio.ovpn` needs an
+interactive TTY for three secrets (sudo password, Garnatxa username, Garnatxa
+password), so it hangs in a non-interactive shell. The bundled
+[`vpn_connect_macos.sh`](../assets/vpn_connect_macos.sh) helper solves this by
+collecting all three through native macOS **secure dialogs** — nothing is echoed
+to the terminal, process list, or shell history.
+
+```bash
+brew install openvpn                       # one-time: installs /opt/homebrew/sbin/openvpn
+mkdir -p ~/.config/garnatxa
+# Download the profile straight from the live docs (no login needed):
+curl -fSL -o ~/.config/garnatxa/i2sysbio.ovpn \
+  https://garnatxadoc.uv.es/_downloads/ca402cace40e854fd0461fd7a311cb01/i2sysbio.ovpn
+
+# Connect — answer the three secure popups (VPN user, VPN pass, admin password):
+assets/vpn_connect_macos.sh ~/.config/garnatxa/i2sysbio.ovpn
+
+# Disconnect + shred temp credential files:
+assets/vpn_disconnect_macos.sh
+```
+
+The script verifies success by probing the cluster login host `10.1.0.6:22`
+(only reachable *over* the VPN; probed by IP so it works regardless of DNS).
+Confirm manually any time with:
+
+```bash
+ifconfig | grep -A2 '^utun'          # a new utunN with a 172.16.x VPN-internal IP
+nc -z -w6 10.1.0.6 22 && echo "tunnel up"
+```
+
+**Split-tunnel by default — this matters.** The shipped `i2sysbio.ovpn`
+contains `redirect-gateway def1`, i.e. it is **full-tunnel**: it forces *all*
+your traffic through Garnatxa's egress, which is slow and heavily firewalled
+(github times out, ICMP is dropped, general browsing crawls — the docs warn
+"otherwise you lose general internet while connected"). `vpn_connect_macos.sh`
+therefore comments out `redirect-gateway` and routes only the cluster subnet
+(`10.1.0.0/16`) through the tunnel, leaving your normal internet untouched.
+Cluster access (SSH, `scp`, `rsync`) still works because the cluster routes and
+DNS are kept. If you genuinely need everything tunnelled, set
+`VPN_FULL_TUNNEL=1 assets/vpn_connect_macos.sh …`.
+
+> Symptom of an accidental full-tunnel: right after connecting, `ping 1.1.1.1`
+> fails, `curl https://github.com` times out, and browsing is slow. Check with
+> `route -n get 1.1.1.1` — if `interface:` is `utun*`, you're full-tunnelled;
+> reconnect split-tunnel (the default) or disconnect.
+
+Under the hood it runs `sudo openvpn --config <profile> --auth-user-pass <file>
+--daemon`, which is exactly the plain-CLI path below with the credential prompts
+handled for you. On OpenVPN 2.7 (current Homebrew) two log warnings are benign:
+`DEPRECATED OPTION: --persist-key` (keys are always persisted now) and
+`Unrecognized option ... block-outside-dns` (a Windows-only directive).
 
 ### Windows setup
 
@@ -118,7 +174,10 @@ sudo openvpn ./i2sysbio.ovpn
 
 Prompts: local user password (sudo), then Garnatxa username, then Garnatxa
 password. Success looks like `Initialization Sequence Completed`. The benign
-warning `Unrecognized option ... block-outside-dns` is harmless on OpenVPN 2.5.
+warning `Unrecognized option ... block-outside-dns` is harmless on OpenVPN 2.5
+through 2.7 (on 2.7 you also see `DEPRECATED OPTION: --persist-key`, equally
+harmless). On macOS, prefer [`vpn_connect_macos.sh`](../assets/vpn_connect_macos.sh)
+so the three prompts arrive as secure dialogs instead of TTY prompts.
 
 ## SSH
 
@@ -227,11 +286,16 @@ dropped.
 Preferred: <https://garnatxadoc.uv.es/support> → new ticket → topic
 `[Garnatxa HPC]`. Email `i2sysbiohpc@uv.es` is the fallback.
 
-## VPN/connectivity downloads (paths in the live docs)
+## VPN/connectivity downloads (live docs: <https://garnatxadoc.uv.es/>)
 
-- I2SysBio VPN config: `_downloads/ca402cace40e854fd0461fd7a311cb01/i2sysbio.ovpn`
-- UV VPN config: `_downloads/a8177e5ca586ad246093bc5f05784bf0/vpn_uv_es.ovpn`
+- **I2SysBio VPN config** (same file for macOS, Windows, Ubuntu):
+  <https://garnatxadoc.uv.es/_downloads/ca402cace40e854fd0461fd7a311cb01/i2sysbio.ovpn>
+- UV VPN config:
+  <https://garnatxadoc.uv.es/_downloads/a8177e5ca586ad246093bc5f05784bf0/vpn_uv_es.ovpn>
 - macOS OpenVPN Connect installer:
-  `_downloads/a1be754d3dbf45c6a289d71b74d7bacc/openvpn-connect-3.3.6.4368_signed.dmg`
+  <https://garnatxadoc.uv.es/_downloads/a1be754d3dbf45c6a289d71b74d7bacc/openvpn-connect-3.3.6.4368_signed.dmg>
 - Windows OpenVPN installer:
-  `_downloads/81d2e871b41b22f3b7af11badd34f0b6/OpenVPN-2.5.7-I602-amd64.msi`
+  <https://garnatxadoc.uv.es/_downloads/81d2e871b41b22f3b7af11badd34f0b6/OpenVPN-2.5.7-I602-amd64.msi>
+
+These are public download links — a bare `curl -fSL -o <file> <url>` works (the
+profile starts with `client` / `remote 147.156.158.10`), no login required.

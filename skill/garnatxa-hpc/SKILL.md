@@ -174,6 +174,12 @@ Operator helpers (the agent runs these):
 
 - [`preflight.sh`](assets/preflight.sh) — one-shot SSH probe verifying VPN, key
   auth, Garnatxa-only tooling (`squeue_`, `tapecopy`, …), and the merlot hop.
+- [`vpn_connect_macos.sh`](assets/vpn_connect_macos.sh) /
+  [`vpn_disconnect_macos.sh`](assets/vpn_disconnect_macos.sh) — on macOS, bring
+  the VPN up/down from the CLI when preflight shows it's down. Uses the Homebrew
+  `openvpn` binary and collects the VPN credentials + admin password through
+  native secure dialogs (nothing echoed), so the agent can drive the connection
+  while the human just answers the popups. See `references/connecting.md`.
 - [`wait_for_job.sh`](assets/wait_for_job.sh) — poll a job to completion from
   the local side (the 8-hour SSH idle timeout breaks naive `sbatch --wait`).
 - [`resubmit_with_bumped_resources.sh`](assets/resubmit_with_bumped_resources.sh)
